@@ -1,0 +1,5 @@
+config.ini
+history.db
+mac_vendors.json
+__pycache__/
+*.pyc

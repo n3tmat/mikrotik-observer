@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikroTik NOC Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #cbd5e1; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="p-6 bg-slate-900 min-h-screen">
+
+    <div class="max-w-7xl mx-auto mb-6 flex justify-between items-end border-b border-slate-700 pb-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">MikroTik <span class="text-blue-500">Observer</span></h1>
+            <p class="text-sm text-slate-400 mt-1" id="hardware-info">Connecting to Router...</p>
+        </div>
+        
+        <div class="flex gap-8 justify-end">
+            <div class="flex flex-col items-center">
+                <div class="text-xs text-slate-500 uppercase font-bold">Connections</div>
+                <div class="text-xl font-mono text-emerald-400 mt-1" id="conn-val">0</div>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="text-xs text-slate-500 uppercase font-bold">CPU / RAM</div>
+                <div class="text-xl font-mono text-white mt-1"><span id="cpu-val">0</span>% <span class="text-slate-500 text-sm">/</span> <span id="ram-val">0</span>%</div>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="text-xs text-slate-500 uppercase font-bold">WAN Down</div>
+                <div class="text-xl font-mono text-blue-400 mt-1"><span id="total-down">0.0</span> <span class="text-xs text-blue-500/50">Mbps</span></div>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="text-xs text-slate-500 uppercase font-bold">WAN Up</div>
+                <div class="text-xl font-mono text-purple-400 mt-1"><span id="total-up">0.0</span> <span class="text-xs text-purple-500/50">Mbps</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 shadow-lg">
+            <h2 class="text-sm font-bold text-slate-400 uppercase mb-2">Live Throughput (60s)</h2>
+            <div class="h-48 w-full">
+                <canvas id="liveChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 shadow-lg">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-sm font-bold text-slate-400 uppercase">Historical Log (SQLite)</h2>
+                <div>
+                    <button onclick="clearDatabase()" class="text-xs bg-red-900/80 hover:bg-red-700 text-white px-3 py-1.5 rounded transition border border-red-500/50">Refresh DB</button>
+                    <a href="/api/export_csv" class="text-xs bg-emerald-600/80 hover:bg-emerald-500 text-white px-3 py-1.5 rounded transition ml-2 border border-emerald-500/50">Download CSV</a>
+                </div>
+            </div>
+            <div class="h-48 w-full">
+                <canvas id="dbChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="max-w-7xl mx-auto bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-lg">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
+                    <th class="px-6 py-3 font-semibold">Device Name</th>
+                    <th class="px-6 py-3 font-semibold">IP / MAC Address</th>
+                    <th class="px-6 py-3 font-semibold text-right">Download (Queues)</th>
+                    <th class="px-6 py-3 font-semibold text-right">Upload (Queues)</th>
+                </tr>
+            </thead>
+            <tbody id="device-list" class="divide-y divide-slate-700">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // --- 1. LIVE CHART ---
+        const ctxLive = document.getElementById('liveChart').getContext('2d');
+        const liveChart = new Chart(ctxLive, {
+            type: 'line',
+            data: { 
+                labels: [], 
+                datasets: [
+                    { label: 'Download', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 },
+                    { label: 'Upload', data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 }
+                ] 
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                    // animation
+                animation: { duration: 400, easing: 'easeOutQuad' }, 
+                plugins: { legend: { display: true, labels: {color: '#cbd5e1', boxWidth: 10} } }, 
+                scales: { x: { display: false }, y: { grid: { color: '#1e293b' }, beginAtZero: true } } 
+            }
+        });
+
+        // --- 2. DATABASE CHART ---
+        const ctxDb = document.getElementById('dbChart').getContext('2d');
+        const dbChart = new Chart(ctxDb, {
+            type: 'line',
+            data: { labels: [], datasets: [
+                { label: 'Avg Down', data: [], borderColor: '#8b5cf6', borderWidth: 2, tension: 0.4, pointRadius: 1 },
+                { label: 'Avg Up', data: [], borderColor: '#d946ef', borderWidth: 2, tension: 0.4, pointRadius: 1 }, // <-- NEW UPLOAD LINE
+                { label: 'Connections', data: [], borderColor: '#10b981', borderWidth: 1, borderDash: [5, 5], tension: 0.4, pointRadius: 0, yAxisID: 'y1' }
+            ]},
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                animation: { duration: 600, easing: 'easeInOutQuart' }, 
+                plugins: { legend: { display: true, labels: {color: '#cbd5e1', boxWidth: 10} } }, 
+                scales: { 
+                    x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { display: false } }, 
+                    y: { type: 'linear', display: true, position: 'left', grid: { color: '#1e293b' }, beginAtZero: true },
+                    y1: { type: 'linear', display: true, position: 'right', grid: { display: false }, beginAtZero: true }
+                } 
+            }
+        });
+        // --- FETCH LIVE DATA (1s) ---
+        async function fetchLiveStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                if(data.status === 'error') return;
+
+                document.getElementById('hardware-info').innerText = `${data.sys.board} | RouterOS v${data.sys.os} | Uptime: ${data.sys.uptime}`;
+                document.getElementById('total-down').innerText = data.total_down;
+                document.getElementById('total-up').innerText = data.total_up;
+                document.getElementById('cpu-val').innerText = data.sys.cpu;
+                document.getElementById('ram-val').innerText = data.sys.ram;
+                document.getElementById('conn-val').innerText = data.connections;
+
+                if(data.sys.cpu > 80) document.getElementById('cpu-val').className = "text-red-500 font-bold";
+                else document.getElementById('cpu-val').className = "text-white";
+
+                liveChart.data.labels = data.history.map(h => h.time);
+                liveChart.data.datasets[0].data = data.history.map(h => h.down);
+                liveChart.data.datasets[1].data = data.history.map(h => h.up);
+                liveChart.update();
+
+                // Update Vendor Table
+                let html = '';
+                data.devices.forEach(dev => {
+                    html += `
+                        <tr class="hover:bg-slate-700/50 transition-colors">
+                            <td class="px-6 py-3"><div class="font-medium text-white">${dev.name}</div></td>
+                            <td class="px-6 py-3">
+                                <div class="text-sm font-mono text-slate-400">${dev.ip}</div>
+                                <div class="text-xs font-mono text-slate-600 mt-0.5">${dev.mac} &middot; <span class="text-slate-500">${dev.vendor}</span></div>
+                            </td>
+                            <td class="px-6 py-3 text-right font-mono text-blue-400 font-bold">${dev.down}</td>
+                            <td class="px-6 py-3 text-right font-mono text-purple-400 font-bold">${dev.up}</td>
+                        </tr>`;
+                });
+                document.getElementById('device-list').innerHTML = html;
+            } catch (err) {}
+        }
+
+        // --- FETCH DATABASE HISTORY ---
+        async function fetchHistory() {
+            try {
+                const res = await fetch('/api/history_24h');
+                const data = await res.json();
+                
+                dbChart.data.labels = data.labels;
+                dbChart.data.datasets[0].data = data.download;
+                dbChart.data.datasets[1].data = data.upload;      // <-- NEW
+                dbChart.data.datasets[2].data = data.connections; // <-- Shifted to [2]
+                dbChart.update();
+            } catch (err) {}
+        }
+
+        // ---RESTART DATABASE ---
+        async function clearDatabase() {
+            if (!confirm("Did you download your CSV backup? Wieting the database cannot be undone. Proceed?")) return;
+
+            try {
+                const res = await fetch('/api/clear_db', { method: 'POST' });
+                
+                if (!res.ok) {
+                    const text = await res.text();  // read raw response
+                    alert("Server error: " + text);
+                    return;
+                }
+
+                const result = await res.json();
+                if (result.status === 'success') {
+                    fetchHistory();
+                    fetchLiveStats();
+                } else {
+                    alert("Error: " + result.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Network error: " + err.message);
+            }
+        }
+        setInterval(fetchLiveStats, 1000);
+        fetchLiveStats();
+        
+        setInterval(fetchHistory, 60000); 
+        setTimeout(fetchHistory, 2000); 
+    </script>
+</body>
+</html>
