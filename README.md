@@ -33,9 +33,16 @@ System → Users → Add
 Must be running on the router for device discovery to work.
 IP → DHCP Server → verify it is active on your LAN interface
 
-### 4. FastTrack (optional)
-By default MikroTik uses FastTrack which bypasses queue counters,
-meaning per-device bandwidth will show 0.00 or close to it even with queues configured.
+### 4. Apply the DHCP Lease Script
+This script automatically creates and removes Simple Queues when devices 
+connect and disconnect. It is required for device discovery to work properly.
+
+Winbox: IP → DHCP Server → select your server → Lease Script → paste the 
+contents of dhcp-queue-script.rsc
+
+### 5. FastTrack (optional)
+FastTrack bypasses queue counters, so per-device bandwidth will show 0.00 
+on routers where FastTrack is active.
 
 To disable it:
 IP → Firewall → Filter Rules → disable the FastTrack rule
