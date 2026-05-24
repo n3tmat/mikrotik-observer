@@ -33,17 +33,9 @@ System → Users → Add
 Must be running on the router for device discovery to work.
 IP → DHCP Server → verify it is active on your LAN interface
 
-### 4. Simple Queues (optional)
-Devices without a queue will appear in the dashboard but show 0.00 Mbps.
-To enable per-device bandwidth tracking:
-Queues → Simple Queues → Add
-- Target: 192.168.88.x/32 (the device IP)
-
-The dashboard picks up queues automatically, no restart needed.
-
-### 5. FastTrack (optional)
+### 4. FastTrack (optional)
 By default MikroTik uses FastTrack which bypasses queue counters,
-meaning per-device bandwidth will show 0.00 even with queues configured.
+meaning per-device bandwidth will show 0.00 or close to it even with queues configured.
 
 To disable it:
 IP → Firewall → Filter Rules → disable the FastTrack rule
