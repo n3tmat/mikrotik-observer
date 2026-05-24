@@ -46,8 +46,8 @@ Create a user with read access or use your admin credentials.
 
 ## Project Structure
 
-app2.py              — Flask backend, router data collection
-templates/index2.html — Frontend dashboard
+app.py              — Flask backend, router data collection
+templates/index.html — Frontend dashboard
 config.ini           — Your local config (not committed)
 config.example.ini   — Template for new users
 history.db           — SQLite database (auto-created)
