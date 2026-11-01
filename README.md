@@ -19,6 +19,14 @@ Displays live bandwidth, per-device traffic, MAC vendor identification, and hist
 - MikroTik router with API access enabled
 - Python 3.9+
 
+## Security notes
+
+- The app uses the plain RouterOS API (port 8728), so credentials are sent unencrypted. Use it only on a trusted LAN.
+- Restrict API access to the Pi's IP: IP → Services → api → "Available From".
+- Use a dedicated monitoring user in the `read` group, not `full`.
+- The dashboard has no login. Anyone on the same network can open it, so don't expose port 5000 to the internet.
+- Planned: API-SSL (8729) support and basic authentication.
+
 ## MikroTik Router Setup
 
 ### 1. Enable API Access
@@ -131,9 +139,11 @@ sudo systemctl start mikrotik-observer
 ```
 
 ## Project Structure
+```
 app.py                 — Flask backend, router data collection
 templates/index.html   — Frontend dashboard
 config.ini             — Your local config (not committed)
 config.example.ini     — Template for new users
 history.db             — SQLite database (auto-created)
 mac_vendors.json       — OUI cache (auto-created)
+```
