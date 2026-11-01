@@ -11,7 +11,7 @@ Displays live bandwidth, per-device traffic, MAC vendor identification, and hist
 - MAC randomization detection
 - L4 active connection tracking
 - SQLite historical logging with CSV export
-- Clean dark web UI (Tailwind CSS + Chart.js)
+- Clean web UI (Tailwind CSS + Chart.js)
 
 ## Requirements
 
